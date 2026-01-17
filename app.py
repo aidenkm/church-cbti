@@ -3,6 +3,9 @@ import pandas as pd
 import streamlit.components.v1 as components
 import altair as alt
 import os
+import datetime # [NEW] 시간 기록용
+import gspread # [NEW] 구글 시트 연동용
+from oauth2client.service_account import ServiceAccountCredentials # [NEW] 인증용
 
 # -----------------------------------------------------------------------------
 # 1. 페이지 설정 및 모바일 최적화 CSS
@@ -273,7 +276,7 @@ else:
     scroll_to_top()
     st.balloons()
     
-    # 점수 계산
+    # 1. 점수 계산 (기존 코드)
     scores = {"Theology": 0, "Drive": 0, "Society": 0, "Culture": 0}
     counts = {"Theology": 0, "Drive": 0, "Society": 0, "Culture": 0}
     
@@ -289,6 +292,37 @@ else:
     type_code += "D" if avg_scores["Drive"] <= 5 else "G"
     type_code += "P" if avg_scores["Society"] <= 5 else "S"
     type_code += "L" if avg_scores["Culture"] <= 5 else "M"
+
+    # ==========================================
+    # [NEW] 구글 시트에 데이터 저장하기 (배포 환경에서만 작동)
+    # ==========================================
+    if "saved" not in st.session_state: # 중복 저장 방지
+        try:
+            # Streamlit Secrets에서 인증 정보 가져오기
+            if "gcp_service_account" in st.secrets:
+                scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+                creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
+                client = gspread.authorize(creds)
+                
+                # 구글 시트 열기 (시트 이름 정확해야 함!)
+                sheet = client.open("C-BTI_Result").sheet1 
+                
+                # 데이터 행 추가 [날짜, 유형, 신학점수, 동력점수, 사회점수, 문화점수]
+                row = [
+                    str(datetime.datetime.now()),
+                    type_code,
+                    avg_scores["Theology"],
+                    avg_scores["Drive"],
+                    avg_scores["Society"],
+                    avg_scores["Culture"]
+                ]
+                sheet.append_row(row)
+                st.session_state.saved = True # 저장 완료 표시
+                st.toast("✅ 결과가 서버에 안전하게 저장되었습니다!", icon="💾")
+        except Exception as e:
+            # 로컬에서 실행하거나 설정이 안 되어 있어도 앱이 멈추지 않게 함
+            pass
+            # st.error(f"저장 중 오류 발생: {e}") # 디버깅용 (배포시엔 주석 처리 추천)
     
     # 안전하게 정보 가져오기
     type_info = TYPE_DETAILS.get(type_code, {"title": "알 수 없음", "person": "-", "quote": "", "keywords": [], "desc": "-"})
