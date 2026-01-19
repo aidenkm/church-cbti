@@ -52,11 +52,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# 2. 데이터: 16가지 유형 정의 (최종 합의된 인물 리스트)
+# 2. 데이터: 16가지 유형 정의 (TDSM 수정 완료)
 # -----------------------------------------------------------------------------
 TYPE_DETAILS = {
     "TDPL": {
-        "title": "청교도적 수도사형",
+        "title": "엄격한 신학자형",
         "slogan": "오직 성경, 오직 거룩",
         "desc": "철저한 말씀 연구와 개인의 경건을 최우선으로 여기며, 타협하지 않는 진리를 수호합니다.",
         "people_data": [
@@ -78,7 +78,7 @@ TYPE_DETAILS = {
         ]
     },
     "TDSL": {
-        "title": "사회 개혁가형",
+        "title": "정의로운 개혁가형",
         "slogan": "하나님의 법대로 세상을 개혁하라",
         "desc": "불의와 타협하지 않는 원칙을 가지고, 사회의 도덕적 타락과 부조리에 맞서 싸웁니다.",
         "people_data": [
@@ -89,9 +89,9 @@ TYPE_DETAILS = {
         ]
     },
     "TDSM": {
-        "title": "실용적 전략가형",
-        "slogan": "세계는 나의 교구다",
-        "desc": "탁월한 리더십과 전략으로 조직을 이끌며, 복음 전파를 위한 실질적인 성과를 만들어냅니다.",
+        "title": "신념의 순교자형", # [수정] 실용적 전략가 -> 신념의 저항가
+        "slogan": "악을 보고 침묵하는 것은 그 자체로 악이다", # [수정] 웨슬리 명언 -> 본회퍼/저항 정신
+        "desc": "불의한 시대적 상황 속에서도 타협하지 않고, 자신의 생명을 걸고 진리와 원칙을 지켜내는 저항가입니다.",
         "people_data": [
             {"name": "다니엘", "type": "Bible", "text": "다니엘 1:8 - 뜻을 정하여 왕의 음식으로 자기를 더럽히지 아니하고"},
             {"name": "얀 후스", "type": "Quote", "text": "\"진리를 사랑하고, 진리를 말하고, 진리를 지켜라.\""},
@@ -100,18 +100,18 @@ TYPE_DETAILS = {
         ]
     },
     "TGPL": {
-        "title": "무릎의 성자형",
+        "title": "뜨거운 경건주의자형",
         "slogan": "기도는 하나님과 대화하는 것이다",
         "desc": "깊은 기도를 통해 하나님과 독대하며, 영적인 순수함과 내면의 거룩함을 추구합니다.",
         "people_data": [
             {"name": "이사야", "type": "Bible", "text": "이사야 6:8 - 내가 여기 있나이다 나를 보내소서"},
-            {"name": "성 어거스틴", "type": "Book", "text": "저서: 《고백록》 (Confessions)"},
+            {"name": "성 아우구스티누스", "type": "Book", "text": "저서: 《고백록》 (Confessions)"},
             {"name": "블레즈 파스칼", "type": "Book", "text": "저서: 《팡세》 (Pensées)"},
             {"name": "한경직 목사", "type": "Quote", "text": "\"템플턴상 상금은 내 것이 아닙니다. 나는 죄인입니다.\""}
         ]
     },
     "TGPM": {
-        "title": "불의 전도자형",
+        "title": "열정적 부흥사형",
         "slogan": "우리가 보고 들은 것을 말하지 않을 수 없다",
         "desc": "복잡한 논리보다는 직관적이고 뜨거운 열정으로 영혼을 구원하는 데 앞장섭니다.",
         "people_data": [
@@ -133,7 +133,7 @@ TYPE_DETAILS = {
         ]
     },
     "TGSM": {
-        "title": "순교자적 선교사형",
+        "title": "사랑의 혁명가형",
         "slogan": "나를 따르려거든 자기를 부인하라",
         "desc": "민족과 공동체를 위해 자신의 모든 기득권을 내려놓고 희생하며 앞장서는 리더입니다.",
         "people_data": [
@@ -210,18 +210,18 @@ TYPE_DETAILS = {
         ]
     },
     "CGSL": {
-        "title": "평화의 사자형",
+        "title": "저항하는 평화주의자형",
         "slogan": "평화가 곧 길이다",
         "desc": "폭력과 혐오가 가득한 세상에서 기도와 비폭력, 화해의 메시지로 평화를 심습니다.",
         "people_data": [
             {"name": "예레미야", "type": "Bible", "text": "예레미야애가 3:49 - 내 눈에 흐르는 눈물이 그치지 아니하고"},
-            {"name": "레프 톨스토이", "type": "Book", "text": "저서: 《하나님의 나라는 너희 안에 있다》"},
+            {"name": "레오 톨스토이", "type": "Book", "text": "저서: 《하나님의 나라는 너희 안에 있다》"},
             {"name": "데스몬드 투투", "type": "Book", "text": "저서: 《용서 없이 미래 없다》"},
             {"name": "스탠리 하우어워스", "type": "Book", "text": "저서: 《나그네 된 백성》 (Resident Aliens)"}
         ]
     },
     "CGSM": {
-        "title": "행동하는 개혁가형",
+        "title": "꿈꾸는 혁명가형",
         "slogan": "행함이 없는 믿음은 죽은 것이다",
         "desc": "불의를 참지 못하는 거룩한 분노로, 억압받는 자들의 해방을 위해 온몸을 던집니다.",
         "people_data": [
@@ -234,7 +234,7 @@ TYPE_DETAILS = {
 }
 
 # -----------------------------------------------------------------------------
-# 3. 데이터: 질문지 (총 45문항 - 님께서 주신 리스트 100% 반영)
+# 3. 데이터: 질문지 (총 45문항 - 100% 반영)
 # -----------------------------------------------------------------------------
 questions_data = [
     # 🏛️ Part 1. 신학 (Theology) - 15문항
@@ -432,6 +432,7 @@ else:
             
         with cols[i]:
             if os.path.exists(img_path):
+                 
                 st.image(img_path, use_container_width=True)
             else:
                 st.markdown(f"""
@@ -460,10 +461,12 @@ else:
             "지표": ["신학(T vs C)", "동력(D vs G)", "사회(P vs S)", "문화(L vs M)"],
             "점수": [avg["Theology"], avg["Drive"], avg["Society"], avg["Culture"]]
         })
+        
+        # [수정] 차트 색상 복구 (파랑, 빨강, 초록, 노랑)
         c = alt.Chart(chart_data).mark_bar().encode(
             x=alt.X('지표', sort=None),
             y=alt.Y('점수', scale=alt.Scale(domain=[0, 10])),
-            color=alt.value("#4B89DC"),
+            color=alt.Color('지표', scale=alt.Scale(range=["#4B89DC", "#D9534F", "#5CB85C", "#F0AD4E"]), legend=None),
             tooltip=['지표', '점수']
         ).properties(height=250)
         st.altair_chart(c, use_container_width=True)
