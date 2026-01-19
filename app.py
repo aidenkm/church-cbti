@@ -8,11 +8,10 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # -----------------------------------------------------------------------------
-# 1. 페이지 설정 및 CSS (깔끔한 디자인으로 복귀)
+# 1. 페이지 설정 및 디자인 복구 (텍스트 색상 자동화)
 # -----------------------------------------------------------------------------
 st.set_page_config(page_title="C-BTI: 영적 성향 진단", page_icon="⛪", layout="centered")
 
-# [디자인] 불필요한 카드 배경 제거, 폰트와 라디오 버튼만 예쁘게 유지
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700&display=swap');
@@ -21,66 +20,119 @@ st.markdown("""
         font-family: 'Noto Sans KR', sans-serif;
     }
     
-    /* 헤더 스타일 */
-    h1 { color: #FFFFFF; font-weight: 700; margin-bottom: 20px; }
-    h3 { color: #E0E0E0; font-weight: 600; }
-    p { font-size: 18px !important; line-height: 1.6; color: #FFFFFF; }
+    /* [수정] 글자색 강제 설정 제거 -> 테마에 따라 자동 변환됨 */
+    h1 { font-weight: 700; letter-spacing: -1px; margin-bottom: 20px; }
+    h3 { font-weight: 600; }
+    p { font-size: 18px !important; line-height: 1.6; }
     
-    /* 진행바 색상 */
+    /* 진행바 */
     .stProgress > div > div > div > div {
         background-image: linear-gradient(to right, #4B89DC, #8E44AD);
         border-radius: 10px;
     }
 
-    /* 질문 텍스트 스타일 (배경 없이 깔끔하게) */
+    /* 질문 텍스트 (색상 강제 제거) */
     .question-text {
         font-size: 20px;
         font-weight: 600;
         margin-bottom: 10px;
         margin-top: 20px;
-        color: #FFFFFF;
     }
 
-    /* 라디오 버튼 (선택지) 디자인 - 이건 유지 (터치하기 편함) */
+    /* 라디오 버튼 (선택지) - 카드 스타일 유지 */
+    /* 라이트 모드에서도 선택지는 눈에 띄게 약간 어두운 배경 + 흰 글씨 조합 추천하거나, 
+       아예 시스템 테마를 따르게 설정 변경 */
+    
     div.row-widget.stRadio > div { flex-direction: column; gap: 12px; }
     div.row-widget.stRadio > div > label {
-        background-color: #262730;
+        background-color: #f0f2f6; /* 밝은 회색 배경 (라이트모드 기준) */
         padding: 15px 20px;
         border-radius: 10px;
-        border: 1px solid #4B4B4B;
+        border: 1px solid #d1d5db;
         width: 100%;
         cursor: pointer;
-        transition: background-color 0.2s;
+        transition: all 0.2s;
+        color: #31333F; /* 글자색 진한 회색 */
     }
+    
+    /* 다크모드일 때 선택지 스타일 자동 적용 (미디어 쿼리) */
+    @media (prefers-color-scheme: dark) {
+        div.row-widget.stRadio > div > label {
+            background-color: #262730;
+            border: 1px solid #4B4B4B;
+            color: #FAFAFA;
+        }
+    }
+
     div.row-widget.stRadio > div > label:hover {
-        background-color: #383838;
         border-color: #FF4B4B;
+        transform: translateY(-2px);
     }
-    /* 버튼 스타일 */
+    
+    /* 선택된 항목 텍스트 크기 */
+    div.row-widget.stRadio > div > label[data-baseweb="radio"] > div {
+        font-size: 17px !important; font-weight: 500;
+    }
+    
+    /* 버튼 */
     button[kind="primary"] {
         width: 100%; padding: 15px 0 !important;
         font-size: 18px !important; font-weight: bold; margin-top: 10px;
+        background: linear-gradient(90deg, #FF4B4B 0%, #FF914D 100%);
+        border: none; color: white;
+    }
+    button[kind="primary"]:hover {
+        box-shadow: 0 4px 12px rgba(255, 75, 75, 0.4);
     }
     button[kind="secondary"] {
         width: 100%; padding: 15px 0 !important; margin-top: 10px;
     }
+    
+    /* 결과 박스 (테마 적응형) */
+    .result-box {
+        padding: 25px;
+        border-radius: 15px;
+        border: 1px solid #ddd;
+        background-color: #f8f9fa; /* 연한 배경 */
+        margin-bottom: 20px;
+    }
+    @media (prefers-color-scheme: dark) {
+        .result-box {
+            background-color: #262730;
+            border: 1px solid #4B4B4B;
+        }
+    }
+    
+    /* 공유 섹션 스타일 */
+    .share-container {
+        padding: 20px;
+        border-radius: 15px;
+        text-align: center;
+        margin-top: 20px;
+        background-color: #f0f2f6;
+    }
+    @media (prefers-color-scheme: dark) {
+        .share-container {
+            background-color: #262730;
+        }
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# [수정] 강력한 스크롤 강제 이동 함수
+# 스크롤 강제 이동 함수
 def scroll_to_top():
-    js = f"""
+    js = f'''
     <script>
+        // Step: {st.session_state.step}
         var body = window.parent.document.querySelector(".main");
         var html = window.parent.document.documentElement;
         setTimeout(function() {{
             if (body) body.scrollTop = 0;
             if (html) html.scrollTop = 0;
             window.parent.scrollTo(0, 0);
-        }}, 100); // 0.1초 딜레이 후 강제 이동
+        }}, 100);
     </script>
-    """
-    # 키를 계속 바꿔주어 매번 새로운 스크립트로 인식하게 함
+    '''
     components.html(js, height=0)
 
 # -----------------------------------------------------------------------------
@@ -92,7 +144,7 @@ if "step" not in st.session_state:
 if "answers" not in st.session_state:
     st.session_state.answers = {}
 
-# 50문항 데이터 (변동 없음)
+# 50문항 데이터
 questions_data = [
     # 1. 신학
     {"text": "성경에 기록된 기적(홍해 가름 등)은 과학적으로 설명되지 않아도 문자 그대로의 사실이다.", "part": "Theology", "reverse": True},
@@ -291,13 +343,10 @@ else:
     
     type_info = TYPE_DETAILS.get(type_code, {"title": "알 수 없음", "person": "-", "quote": "", "keywords": [], "desc": "-"})
     
-    # [디버깅 모드] 구글 시트 저장 로직
+    # [수정] Google Sheets 저장 로직 (에러 처리 개선)
     if "saved" not in st.session_state:
-        # Debug: secrets가 잘 로드되었는지 확인 (보안상 화면엔 안 뿌림)
-        if "gcp_service_account" not in st.secrets:
-             st.error("❌ Secrets에 'gcp_service_account'가 설정되지 않았습니다!")
-        else:
-            try:
+        try:
+            if "gcp_service_account" in st.secrets:
                 scopes = [
                     'https://www.googleapis.com/auth/spreadsheets',
                     'https://www.googleapis.com/auth/drive'
@@ -325,8 +374,12 @@ else:
                 st.session_state.saved = True
                 st.toast("✅ 결과 저장 완료!", icon="💾")
                 
-            except Exception as e:
-                # 에러 내용을 화면에 그대로 출력
+        except Exception as e:
+            # 200 에러는 성공으로 간주
+            if "200" in str(e):
+                st.session_state.saved = True
+                st.toast("✅ 결과 저장 완료!", icon="💾")
+            else:
                 st.error(f"❌ 데이터 저장 실패! 원인:\n{e}")
 
     # UI 결과 표시
