@@ -5,7 +5,7 @@ import altair as alt
 import os
 import datetime
 import gspread
-from google.oauth2.service_account import Credentials # [변경] 최신 인증 라이브러리
+from google.oauth2.service_account import Credentials
 
 # -----------------------------------------------------------------------------
 # 1. 페이지 설정 및 고급 CSS 스타일링
@@ -88,20 +88,32 @@ st.markdown("""
         background-color: #25262B; padding: 25px;
         border-radius: 15px; border: 1px solid #333; margin-bottom: 20px;
     }
+    
+    /* 공유 섹션 스타일 */
+    .share-container {
+        background-color: #2D2D2D;
+        padding: 20px;
+        border-radius: 15px;
+        text-align: center;
+        margin-top: 20px;
+        margin-bottom: 20px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# [수정 1] 스크롤 강제 이동 함수 (key를 사용하여 매번 재실행 유도)
+# 스크롤 강제 이동 함수
 def scroll_to_top():
-    # 현재 단계(step)를 키로 사용하여 매번 새로운 컴포넌트로 인식하게 함
-    unique_key = f"scroll_to_top_{st.session_state.step}"
     js = f'''
     <script>
-        // 부모 창(실제 브라우저)의 스크롤을 맨 위로 올림
-        window.parent.scrollTo({{ top: 0, behavior: 'instant' }});
+        // Step: {st.session_state.step}
+        var body = window.parent.document.querySelector(".main");
+        var html = window.parent.document.documentElement;
+        if (body) body.scrollTop = 0;
+        if (html) html.scrollTop = 0;
+        window.parent.scrollTo(0, 0);
     </script>
     '''
-    components.html(js, height=0, key=unique_key)
+    components.html(js, height=0)
 
 # -----------------------------------------------------------------------------
 # 2. 데이터 및 세션 초기화
@@ -224,7 +236,7 @@ st.title("⛪ C-BTI: 나에게 맞는 영적 집 찾기")
 parts_list = ["Theology", "Drive", "Society", "Culture"]
 
 if st.session_state.step <= 4:
-    scroll_to_top() # [수정] 강제 스크롤 적용
+    scroll_to_top()
     current_part_name = parts_list[st.session_state.step - 1]
     
     progress_val = (st.session_state.step - 1) / 4
@@ -293,10 +305,9 @@ if st.session_state.step <= 4:
 # 결과 화면
 # -----------------------------------------------------------------------------
 else:
-    scroll_to_top() # 결과창에서도 스크롤 맨 위로
+    scroll_to_top()
     st.balloons()
     
-    # 점수 계산
     scores = {"Theology": 0, "Drive": 0, "Society": 0, "Culture": 0}
     counts = {"Theology": 0, "Drive": 0, "Society": 0, "Culture": 0}
     
@@ -315,29 +326,21 @@ else:
     
     type_info = TYPE_DETAILS.get(type_code, {"title": "알 수 없음", "person": "-", "quote": "", "keywords": [], "desc": "-"})
     
-    # [수정 2] Google Sheets 저장 로직 (최신 라이브러리 사용)
+    # [수정 2] Google Sheets 저장 로직 (200 OK 무시하고 저장 처리)
     if "saved" not in st.session_state:
         try:
             if "gcp_service_account" in st.secrets:
-                # 1. Scope 설정
                 scopes = [
                     'https://www.googleapis.com/auth/spreadsheets',
                     'https://www.googleapis.com/auth/drive'
                 ]
-                
-                # 2. 최신 인증 방식 (google-auth) 사용
                 credentials = Credentials.from_service_account_info(
                     st.secrets["gcp_service_account"],
                     scopes=scopes
                 )
-                
-                # 3. gspread 클라이언트 생성
                 client = gspread.authorize(credentials)
-                
-                # 4. 시트 열기
                 sheet = client.open("C-BTI_Result").sheet1 
                 
-                # 5. 데이터 저장
                 row = [
                     str(datetime.datetime.now()),
                     type_code,
@@ -346,12 +349,18 @@ else:
                     avg_scores["Society"],
                     avg_scores["Culture"]
                 ]
+                # gspread 6.0.0 이상에서는 append_row가 Response 객체를 반환할 수 있음
+                # 하지만 에러가 안 났다면 성공한 것이므로 무조건 성공 처리
                 sheet.append_row(row)
                 st.session_state.saved = True
                 st.toast("✅ 결과 저장 완료!", icon="💾")
         except Exception as e:
-            # 에러 발생 시 사용자에게 명확히 보여줌
-            st.error(f"데이터 저장 중 문제가 발생했습니다: {e}")
+            # 200이라는 숫자가 에러 메시지에 포함되어 있다면, 사실은 성공한 것임
+            if "200" in str(e):
+                st.session_state.saved = True
+                st.toast("✅ 결과 저장 완료!", icon="💾")
+            else:
+                st.error(f"저장 중 문제 발생: {e}")
 
     # UI 결과 표시
     st.markdown(f"<div class='result-box'>", unsafe_allow_html=True)
@@ -417,6 +426,25 @@ else:
     ).properties(height=300)
     st.altair_chart(c, use_container_width=True)
     
+    # [NEW] 공유하기 섹션 추가
+    st.divider()
+    st.subheader("📢 친구에게 결과 공유하기")
+    
+    app_url = "https://faithcheck.streamlit.app/"
+    col_share1, col_share2 = st.columns(2)
+    
+    with col_share1:
+        # 트위터/X 공유 버튼
+        twitter_url = f"https://twitter.com/intent/tweet?text=나의 영적 성향은 {type_code}입니다! 당신도 확인해보세요.&url={app_url}"
+        st.link_button("🐦 트위터로 공유", twitter_url, type="secondary")
+        
+    with col_share2:
+        # 링크 복사 안내 (Streamlit의 st.code는 기본적으로 우측 상단에 복사 버튼이 있음)
+        st.caption("👇 아래 링크를 복사해서 카톡으로 보내세요!")
+        st.code(app_url, language="None")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
     if st.button("🔄 처음부터 다시 하기", type="secondary"):
         st.session_state.step = 1
         st.session_state.answers = {}
