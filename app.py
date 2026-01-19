@@ -8,11 +8,11 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # -----------------------------------------------------------------------------
-# 1. 페이지 설정 및 고급 CSS 스타일링
+# 1. 페이지 설정 및 CSS (깔끔한 디자인으로 복귀)
 # -----------------------------------------------------------------------------
 st.set_page_config(page_title="C-BTI: 영적 성향 진단", page_icon="⛪", layout="centered")
 
-# [디자인] 구글 폰트 + 고급 CSS 적용
+# [디자인] 불필요한 카드 배경 제거, 폰트와 라디오 버튼만 예쁘게 유지
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700&display=swap');
@@ -20,99 +20,67 @@ st.markdown("""
     html, body, [class*="css"] {
         font-family: 'Noto Sans KR', sans-serif;
     }
-    h1 { color: #FFFFFF; font-weight: 700; letter-spacing: -1px; margin-bottom: 20px; }
-    h3 { color: #E0E0E0; font-weight: 600; }
     
-    /* 진행바 */
+    /* 헤더 스타일 */
+    h1 { color: #FFFFFF; font-weight: 700; margin-bottom: 20px; }
+    h3 { color: #E0E0E0; font-weight: 600; }
+    p { font-size: 18px !important; line-height: 1.6; color: #FFFFFF; }
+    
+    /* 진행바 색상 */
     .stProgress > div > div > div > div {
         background-image: linear-gradient(to right, #4B89DC, #8E44AD);
         border-radius: 10px;
     }
 
-    /* 질문 카드 */
-    .question-card {
-        background-color: #1E1E1E;
-        padding: 20px;
-        border-radius: 15px;
-        border-left: 5px solid #FF4B4B;
-        margin-bottom: 15px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-    }
+    /* 질문 텍스트 스타일 (배경 없이 깔끔하게) */
     .question-text {
-        font-size: 19px;
-        font-weight: 500;
-        line-height: 1.5;
+        font-size: 20px;
+        font-weight: 600;
+        margin-bottom: 10px;
+        margin-top: 20px;
         color: #FFFFFF;
     }
 
-    /* 라디오 버튼 카드형 디자인 */
-    div.row-widget.stRadio > div { flex-direction: column; gap: 10px; }
+    /* 라디오 버튼 (선택지) 디자인 - 이건 유지 (터치하기 편함) */
+    div.row-widget.stRadio > div { flex-direction: column; gap: 12px; }
     div.row-widget.stRadio > div > label {
-        background-color: #2D2D2D;
-        padding: 16px 20px;
-        border-radius: 12px;
-        border: 1px solid #3D3D3D;
+        background-color: #262730;
+        padding: 15px 20px;
+        border-radius: 10px;
+        border: 1px solid #4B4B4B;
         width: 100%;
         cursor: pointer;
-        transition: all 0.2s ease;
-        display: flex; align-items: center;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: background-color 0.2s;
     }
     div.row-widget.stRadio > div > label:hover {
         background-color: #383838;
         border-color: #FF4B4B;
-        transform: translateY(-2px);
     }
-    div.row-widget.stRadio > div > label[data-baseweb="radio"] > div {
-        font-size: 17px !important; font-weight: 500; color: #FAFAFA;
-    }
-    
-    /* 버튼 */
+    /* 버튼 스타일 */
     button[kind="primary"] {
-        background: linear-gradient(90deg, #FF4B4B 0%, #FF914D 100%);
-        border: none; color: white; padding: 15px 0 !important;
-        border-radius: 12px; font-size: 18px !important; font-weight: bold;
-        width: 100%; transition: 0.3s;
-        box-shadow: 0 4px 15px rgba(255, 75, 75, 0.4);
-    }
-    button[kind="primary"]:hover {
-        transform: scale(1.02);
-        box-shadow: 0 6px 20px rgba(255, 75, 75, 0.6);
+        width: 100%; padding: 15px 0 !important;
+        font-size: 18px !important; font-weight: bold; margin-top: 10px;
     }
     button[kind="secondary"] {
-        width: 100%; padding: 15px 0 !important;
-        border-radius: 12px; border: 1px solid #555;
-        background-color: transparent; color: #AAA;
-    }
-    .result-box {
-        background-color: #25262B; padding: 25px;
-        border-radius: 15px; border: 1px solid #333; margin-bottom: 20px;
-    }
-    
-    /* 공유 섹션 스타일 */
-    .share-container {
-        background-color: #2D2D2D;
-        padding: 20px;
-        border-radius: 15px;
-        text-align: center;
-        margin-top: 20px;
-        margin-bottom: 20px;
+        width: 100%; padding: 15px 0 !important; margin-top: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# 스크롤 강제 이동 함수
+# [수정] 강력한 스크롤 강제 이동 함수
 def scroll_to_top():
-    js = f'''
+    js = f"""
     <script>
-        // Step: {st.session_state.step}
         var body = window.parent.document.querySelector(".main");
         var html = window.parent.document.documentElement;
-        if (body) body.scrollTop = 0;
-        if (html) html.scrollTop = 0;
-        window.parent.scrollTo(0, 0);
+        setTimeout(function() {{
+            if (body) body.scrollTop = 0;
+            if (html) html.scrollTop = 0;
+            window.parent.scrollTo(0, 0);
+        }}, 100); // 0.1초 딜레이 후 강제 이동
     </script>
-    '''
+    """
+    # 키를 계속 바꿔주어 매번 새로운 스크립트로 인식하게 함
     components.html(js, height=0)
 
 # -----------------------------------------------------------------------------
@@ -124,7 +92,7 @@ if "step" not in st.session_state:
 if "answers" not in st.session_state:
     st.session_state.answers = {}
 
-# 50문항 데이터
+# 50문항 데이터 (변동 없음)
 questions_data = [
     # 1. 신학
     {"text": "성경에 기록된 기적(홍해 가름 등)은 과학적으로 설명되지 않아도 문자 그대로의 사실이다.", "part": "Theology", "reverse": True},
@@ -236,7 +204,7 @@ st.title("⛪ C-BTI: 나에게 맞는 영적 집 찾기")
 parts_list = ["Theology", "Drive", "Society", "Culture"]
 
 if st.session_state.step <= 4:
-    scroll_to_top()
+    scroll_to_top() # 페이지 상단으로 이동
     current_part_name = parts_list[st.session_state.step - 1]
     
     progress_val = (st.session_state.step - 1) / 4
@@ -259,11 +227,8 @@ if st.session_state.step <= 4:
         try: prev_index = OPTIONS.index(prev_value) if prev_value else None
         except ValueError: prev_index = None
 
-        st.markdown(f"""
-        <div class="question-card">
-            <div class="question-text">Q{q_num}. {q['text']}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        # [디자인 복원] 카드 박스 제거, 텍스트만 깔끔하게 표시
+        st.markdown(f"<div class='question-text'>Q{q_num}. {q['text']}</div>", unsafe_allow_html=True)
         
         user_choice = st.radio(
             f"Q{q_num} 답변", options=OPTIONS, key=f"radio_{q_key}", 
@@ -326,10 +291,13 @@ else:
     
     type_info = TYPE_DETAILS.get(type_code, {"title": "알 수 없음", "person": "-", "quote": "", "keywords": [], "desc": "-"})
     
-    # [수정 2] Google Sheets 저장 로직 (200 OK 무시하고 저장 처리)
+    # [디버깅 모드] 구글 시트 저장 로직
     if "saved" not in st.session_state:
-        try:
-            if "gcp_service_account" in st.secrets:
+        # Debug: secrets가 잘 로드되었는지 확인 (보안상 화면엔 안 뿌림)
+        if "gcp_service_account" not in st.secrets:
+             st.error("❌ Secrets에 'gcp_service_account'가 설정되지 않았습니다!")
+        else:
+            try:
                 scopes = [
                     'https://www.googleapis.com/auth/spreadsheets',
                     'https://www.googleapis.com/auth/drive'
@@ -339,6 +307,8 @@ else:
                     scopes=scopes
                 )
                 client = gspread.authorize(credentials)
+                
+                # 시트 열기 시도
                 sheet = client.open("C-BTI_Result").sheet1 
                 
                 row = [
@@ -349,18 +319,15 @@ else:
                     avg_scores["Society"],
                     avg_scores["Culture"]
                 ]
-                # gspread 6.0.0 이상에서는 append_row가 Response 객체를 반환할 수 있음
-                # 하지만 에러가 안 났다면 성공한 것이므로 무조건 성공 처리
+                
+                # 저장 시도
                 sheet.append_row(row)
                 st.session_state.saved = True
                 st.toast("✅ 결과 저장 완료!", icon="💾")
-        except Exception as e:
-            # 200이라는 숫자가 에러 메시지에 포함되어 있다면, 사실은 성공한 것임
-            if "200" in str(e):
-                st.session_state.saved = True
-                st.toast("✅ 결과 저장 완료!", icon="💾")
-            else:
-                st.error(f"저장 중 문제 발생: {e}")
+                
+            except Exception as e:
+                # 에러 내용을 화면에 그대로 출력
+                st.error(f"❌ 데이터 저장 실패! 원인:\n{e}")
 
     # UI 결과 표시
     st.markdown(f"<div class='result-box'>", unsafe_allow_html=True)
@@ -426,25 +393,18 @@ else:
     ).properties(height=300)
     st.altair_chart(c, use_container_width=True)
     
-    # [NEW] 공유하기 섹션 추가
     st.divider()
     st.subheader("📢 친구에게 결과 공유하기")
-    
     app_url = "https://faithcheck.streamlit.app/"
     col_share1, col_share2 = st.columns(2)
-    
     with col_share1:
-        # 트위터/X 공유 버튼
-        twitter_url = f"https://twitter.com/intent/tweet?text=나의 영적 성향은 {type_code}입니다! 당신도 확인해보세요.&url={app_url}"
+        twitter_url = f"https://twitter.com/intent/tweet?text=나의 영적 성향은 {type_code}입니다!&url={app_url}"
         st.link_button("🐦 트위터로 공유", twitter_url, type="secondary")
-        
     with col_share2:
-        # 링크 복사 안내 (Streamlit의 st.code는 기본적으로 우측 상단에 복사 버튼이 있음)
-        st.caption("👇 아래 링크를 복사해서 카톡으로 보내세요!")
+        st.caption("👇 링크 복사해서 공유하기")
         st.code(app_url, language="None")
 
     st.markdown("<br>", unsafe_allow_html=True)
-
     if st.button("🔄 처음부터 다시 하기", type="secondary"):
         st.session_state.step = 1
         st.session_state.answers = {}
