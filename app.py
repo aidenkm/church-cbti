@@ -3,9 +3,6 @@ import pandas as pd
 import streamlit.components.v1 as components
 import altair as alt
 import os
-import datetime
-import gspread
-from google.oauth2.service_account import Credentials
 
 # -----------------------------------------------------------------------------
 # 1. 페이지 설정 및 스타일
@@ -22,7 +19,7 @@ st.markdown("""
     
     /* 질문 텍스트 */
     .question-text {
-        font-size: 20px; font-weight: 600; color: #2c3e50;
+        font-size: 18px; font-weight: 600; color: #2c3e50;
         background-color: #f8f9fa; padding: 15px; border-radius: 10px;
         margin-bottom: 15px; border-left: 5px solid #4B89DC;
     }
@@ -31,7 +28,7 @@ st.markdown("""
     div.row-widget.stRadio > div { flex-direction: column; gap: 10px; }
     div.row-widget.stRadio > div > label {
         background-color: #ffffff; border: 1px solid #e0e0e0;
-        padding: 15px; border-radius: 8px; cursor: pointer;
+        padding: 12px; border-radius: 8px; cursor: pointer;
         transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
     div.row-widget.stRadio > div > label:hover {
@@ -51,15 +48,11 @@ st.markdown("""
         box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 30px;
         text-align: center; border-top: 5px solid #8E44AD;
     }
-    .person-list {
-        background-color: #f1f3f5; padding: 15px; border-radius: 10px;
-        margin-top: 15px; font-size: 14px; text-align: left;
-    }
 </style>
 """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# 2. 데이터: 16가지 유형 정의 (인물별 구절/저서/명언 맞춤형)
+# 2. 데이터: 16가지 유형 정의 (최종 합의된 인물 리스트)
 # -----------------------------------------------------------------------------
 TYPE_DETAILS = {
     "TDPL": {
@@ -241,39 +234,62 @@ TYPE_DETAILS = {
 }
 
 # -----------------------------------------------------------------------------
-# 3. 데이터: 질문지 (기존 4개 축 유지, 질문 내용은 그대로 사용)
+# 3. 데이터: 질문지 (총 45문항 - 님께서 주신 리스트 100% 반영)
 # -----------------------------------------------------------------------------
-# (지면 관계상 질문 리스트는 생략하지 않고 그대로 둡니다. 필요시 수정하세요.)
 questions_data = [
-    # 1. 신학 (T vs C) - 점수가 낮으면 T, 높으면 C
-    {"text": "성경에 기록된 기적은 과학적으로 설명되지 않아도 문자 그대로의 사실이다.", "part": "Theology", "reverse": True},
-    {"text": "진화론은 성경의 창조 섭리를 부정하는 것이므로 배격해야 한다.", "part": "Theology", "reverse": True},
-    {"text": "타종교에도 구원의 가능성이 있다고 인정하는 것은 위험하다.", "part": "Theology", "reverse": True},
-    {"text": "동성애는 인권 문제가 아니라 성경이 금지하는 죄의 문제다.", "part": "Theology", "reverse": True},
-    {"text": "성경의 명령들은 당시 문화적 배경을 고려해 현대적으로 재해석해야 한다.", "part": "Theology", "reverse": False},
-    
-    # 2. 동력 (D vs G) - 점수가 낮으면 D, 높으면 G
-    {"text": "다 같이 '주여!'를 크게 외치고 통성 기도할 때 영적인 시원함을 느낀다.", "part": "Drive", "reverse": False},
-    {"text": "방언, 신유 같은 성령의 은사는 오늘날에도 강력하게 나타나야 한다.", "part": "Drive", "reverse": False},
-    {"text": "뜨거운 집회보다 성경을 체계적으로 공부하는 제자훈련이 더 유익하다.", "part": "Drive", "reverse": True},
-    {"text": "신앙생활의 본질은 감정적 체험보다, 자기를 부인하는 훈련이다.", "part": "Drive", "reverse": True},
-    {"text": "설교가 나를 위로하기보다, 지성적으로 깨닫게 해주길 원한다.", "part": "Drive", "reverse": True},
+    # 🏛️ Part 1. 신학 (Theology) - 15문항
+    {"text": "성경에 기록된 기적(홍해 가름, 오병이어 등)은 과학적으로 설명되지 않아도 문자 그대로 일어난 역사적 사실이다.", "part": "Theology", "reverse": True},
+    {"text": "술, 담배 문제는 구원이나 신앙의 본질과 무관하므로, 무조건 금지하기보다 개인의 양심과 자율에 맡겨야 한다.", "part": "Theology", "reverse": False},
+    {"text": "여성이 목사 안수를 받고 강단에서 설교하는 것은 성경적 창조 질서에 어긋난다고 생각한다.", "part": "Theology", "reverse": True},
+    {"text": "동성애는 인권 문제가 아니라 성경이 금지하는 치유받아야 할 죄의 문제다.", "part": "Theology", "reverse": True},
+    {"text": "예수 천국, 불신 지옥 구호는 기독교 진리를 너무 단순화시킨 것이라 거부감이 든다.", "part": "Theology", "reverse": False},
+    {"text": "진화론은 성경의 창조 신앙과 양립하기 어려우므로, 기독교인이라면 이를 무비판적으로 수용해서는 안 된다.", "part": "Theology", "reverse": True},
+    {"text": "목사님의 설교라도 나의 이성과 상식에 비추어 납득이 가지 않으면 무조건 믿기보다 비판적으로 수용해야 한다.", "part": "Theology", "reverse": False},
+    {"text": "교회는 세상 문화가 침투하지 못하도록 거룩하게 구별된 방파제 역할을 해야 한다.", "part": "Theology", "reverse": True},
+    {"text": "지진이나 전염병 같은 대형 재난을 특정 죄에 대한 하나님의 심판으로 해석하는 것은 위험하다고 생각한다.", "part": "Theology", "reverse": False},
+    {"text": "타종교에도 구원의 가능성이 있거나 배울 점이 있다고 인정하는 것은 위험하다.", "part": "Theology", "reverse": True},
+    {"text": "설교 시간에 인문학, 철학, 영화 이야기 등 세상의 학문이 자주 인용되는 것이 자연스럽고 유익하다.", "part": "Theology", "reverse": False},
+    {"text": "정신의학적 상담과 치료보다 기도가 우울증 같은 마음의 병을 해결하는 근본 열쇠라고 믿는다.", "part": "Theology", "reverse": True},
+    {"text": "사랑의 하나님이 불신자와 다른 종교를 믿는 사람들을 지옥에 던지신다는 교리에 감정적 어려움을 느낀다.", "part": "Theology", "reverse": False},
+    {"text": "사도신경이나 주기도문 형식을 생략하는 것은 예배의 거룩함을 해친다.", "part": "Theology", "reverse": True},
+    {"text": "하나님의 공의와 심판을 강조하는 설교보다, 조건 없는 사랑과 용서를 강조하는 설교가 더 복음적이다.", "part": "Theology", "reverse": False},
 
-    # 3. 사회 (P vs S) - 점수가 낮으면 P, 높으면 S
-    {"text": "교회 강단에서 정치나 사회 이슈를 말하는 것은 부적절하다.", "part": "Society", "reverse": True},
-    {"text": "최우선 사명은 사회 개혁보다 한 영혼의 구원이다.", "part": "Society", "reverse": True},
-    {"text": "구조적인 사회 악을 바꾸기 위해 기독교인이 시위에 참여할 수 있다.", "part": "Society", "reverse": False},
-    {"text": "예수님의 사역은 죄 사함만큼이나 가난한 자들의 해방에 있었다.", "part": "Society", "reverse": False},
-    {"text": "직장에서의 승진과 성공이 곧 하나님께 영광 돌리는 길이다.", "part": "Society", "reverse": True},
+    # 🔥 Part 2. 동력 (Drive) - 10문항
+    {"text": "다 같이 주여!를 크게 외치고 통성 기도할 때 영적인 시원함을 느낀다.", "part": "Drive", "reverse": False},
+    {"text": "신앙생활의 본질은 현실의 복을 누리는 것보다, 자기를 부인하고 십자가의 길(고난과 절제)을 걷는 훈련이다.", "part": "Drive", "reverse": True},
+    {"text": "목사님이 논리적이고 치밀한 분보다는, 조금 투박하더라도 강력한 영적 카리스마와 열정으로 선포하시는 분이 좋다.", "part": "Drive", "reverse": False},
+    {"text": "뜨거운 예배 같은 일시적이고 감정적인 체험보다는, 말씀을 체계적으로 깊이 있게 공부하고 삶에 적용하는 제자 훈련이 신앙의 뼈대라고 생각한다.", "part": "Drive", "reverse": True},
+    {"text": "목사님의 설교가 나를 꾸짖는 내용보다는, 지친 마음을 따뜻하게 위로해 주시는 내용이면 좋겠다.", "part": "Drive", "reverse": False},
+    {"text": "신앙 성장은 종교적인 체험보다는, 나의 인격이 다듬어지고 일상의 삶이 거룩해지는 것(성화)에서 증명된다.", "part": "Drive", "reverse": True},
+    {"text": "복잡한 신학적 지식이나 논리보다는, 단순하더라도 하나님을 향한 순수한 열정과 가슴 뜨거운 은혜가 더 중요하다.", "part": "Drive", "reverse": False},
+    {"text": "예배는 감정을 표출하기보다, 빈틈없이 진행되는 엄숙하고 질서 있는 분위기 속에서 경건함을 유지해야 한다.", "part": "Drive", "reverse": True},
+    {"text": "방언, 신유(병 고침) 같은 성령의 초자연적인 은사는 오늘날에도 동일하게 나타나며, 이는 성령이 일하시는 강력한 증거다.", "part": "Drive", "reverse": False},
+    {"text": "예화가 많은 설교보다는, 성경 본문의 원어적 의미와 배경을 논리적으로 풀어주는 강해 설교를 선호한다.", "part": "Drive", "reverse": True},
 
-    # 4. 문화 (L vs M) - 점수가 낮으면 L, 높으면 M
-    {"text": "예배 시간에 드럼이나 전자악기 소리가 크면 경건함이 깨진다.", "part": "Culture", "reverse": True},
-    {"text": "사도신경이나 주기도문 형식을 생략하는 것은 예배의 거룩함을 해친다.", "part": "Culture", "reverse": True},
-    {"text": "목사님이 청바지나 티셔츠를 입고 설교하는 것도 괜찮다.", "part": "Culture", "reverse": False},
-    {"text": "불신자도 오기 쉬운 '카페 같은 분위기'의 열린 예배를 선호한다.", "part": "Culture", "reverse": False},
-    {"text": "대중가요나 영화 등 세상 문화를 설교에 적극 활용하는 것이 좋다.", "part": "Culture", "reverse": False},
+    # 🌍 Part 3. 사회 (Society) - 10문항
+    {"text": "교회의 최우선 사명은 사회 개혁보다 한 영혼을 전도하여 구원받게 하는 것이다.", "part": "Society", "reverse": True},
+    {"text": "성경이 '위에 있는 권세들에게 복종하라'고 했으므로, 정권이 마음에 들지 않더라도 일단 선거로 뽑혔다면 믿고 순응해야 한다.", "part": "Society", "reverse": True},
+    {"text": "개인의 죄를 회개하는 것보다, 가난과 차별을 만들어내는 사회의 구조적 악과 모순에 관심을 갖는 것이 더 중요하다.", "part": "Society", "reverse": False},
+    {"text": "거리에서 시위나 집회를 하는 것보다는, 열심히 공부하고 자기계발을 통해 사회적 영향력을 갖추는 것이 하나님께 더 영광이 된다.", "part": "Society", "reverse": True},
+    {"text": "사회적 현장(집회, 시위 등)에 기독교인이 깃발을 들고 참여하는 것은 자연스러운 일이다.", "part": "Society", "reverse": False},
+    {"text": "예수님의 사역은 인류 구원과 죄의 대속만큼이나 가난하고 소외된 사람들을 해방하는 데 있었다.", "part": "Society", "reverse": False},
+    {"text": "강단에서 특정 정당을 지지하거나 민감한 정치적 이슈를 언급하는 것은 교회의 본질을 흐리는 일이다.", "part": "Society", "reverse": True},
+    {"text": "진정한 이웃 사랑은 단순한 기부나 봉사를 넘어, 억울하고 소외된 자들의 편에 서서 목소리를 내주는 것이다.", "part": "Society", "reverse": False},
+    {"text": "포괄적 차별금지법 제정을 반대하는 것은 교회가 거룩함을 지키기 위해 반드시 해야 할 일이다.", "part": "Society", "reverse": True},
+    {"text": "세상과 구별됨은 교회 안에 머무는 것이 아니라, 세상 속으로 들어가 정의를 실천하는 것이다.", "part": "Society", "reverse": False},
+
+    # 🎸 Part 4. 문화 (Culture) - 10문항
+    {"text": "찬양 시간에 드럼이나 일렉기타 소리가 너무 크면 경건함이 깨진다고 느낀다.", "part": "Culture", "reverse": True},
+    {"text": "교독문이나 송영 같은 전통적 형식보다는, 찬양과 기도, 설교에만 집중하는 단순한 예배 순서가 더 편하다.", "part": "Culture", "reverse": False},
+    {"text": "교회 건물은 여건상 빌려 쓸 수도 있겠지만, 그래도 언젠가는 하나님께 드려진 구별된 성전이 반드시 있어야 한다.", "part": "Culture", "reverse": True},
+    {"text": "주일 성수도 여행이나 출장, 가족행사 등의 부득이한 사유가 있다면 가끔은 건너뛸 수 있다.", "part": "Culture", "reverse": False},
+    {"text": "교회 안에서 서로를 부를 때 형제, 자매님보다 장로, 권사, 집사님 같은 직분으로 부르는 것이 질서 있어 보인다.", "part": "Culture", "reverse": True},
+    {"text": "목사님이 정장 대신 청바지나 티셔츠 같은 편안한 복장으로 설교하는 것도 괜찮다.", "part": "Culture", "reverse": False},
+    {"text": "아무리 시대가 변해도 주일 예배는 온라인보다는 내가 등록한 교회의 현장에 직접 가서 드리는 것이 원칙이다.", "part": "Culture", "reverse": True},
+    {"text": "사도신경이나 주기도문을 매주 암송하기보다, 상황에 맞춰 생략하거나 찬양으로 대체해도 좋다.", "part": "Culture", "reverse": False},
+    {"text": "본당(예배당)은 거룩한 곳이므로, 평일에 대중 공연장이나 다른 용도로 빌려주는 건 조심스럽다.", "part": "Culture", "reverse": True},
+    {"text": "불신자들도 거부감 없이 올 수 있는 카페 같은 분위기의 편안하고 열린 예배를 선호한다.", "part": "Culture", "reverse": False},
 ]
-# *실제 앱에서는 문항을 더 늘리는 것이 좋습니다. 테스트를 위해 20개로 축약했습니다.*
 
 OPTIONS = ["매우 그렇다", "조금 그렇다", "조금 아니다", "매우 아니다"]
 SCORE_MAP = {"매우 그렇다": 10, "조금 그렇다": 6.7, "조금 아니다": 3.3, "매우 아니다": 0}
@@ -306,22 +322,37 @@ if st.session_state.step <= 4:
     
     current_q_list = [q for q in questions_data if q["part"] == current_part]
     
-    # 이 부분에서 질문 인덱스 겹치지 않게 처리
-    start_idx = sum(1 for q in questions_data if PARTS_KEY.index(q["part"]) < st.session_state.step - 1)
+    # 문항 번호 계산 (이전 챕터 문항 수 합산)
+    start_idx = 0
+    for i in range(st.session_state.step - 1):
+        prev_part = PARTS_KEY[i]
+        start_idx += len([q for q in questions_data if q["part"] == prev_part])
+    
+    all_answered = True 
     
     for idx, q in enumerate(current_q_list):
         q_real_idx = start_idx + idx + 1
         st.markdown(f"<div class='question-text'>Q{q_real_idx}. {q['text']}</div>", unsafe_allow_html=True)
         
-        # 유니크 키 생성
         key_name = f"q_{current_part}_{idx}"
-        val = st.radio(label=f"Q{q_real_idx}", options=OPTIONS, key=key_name, label_visibility="collapsed")
         
-        st.session_state.answers[key_name] = {
-            "score": SCORE_MAP[val],
-            "reverse": q["reverse"],
-            "part": q["part"]
-        }
+        # [중요] 초기화 문제 해결: answers에 저장된 값이 없으면 None (선택 안됨 상태)
+        saved_label = st.session_state.answers.get(key_name, {}).get("label")
+        saved_index = OPTIONS.index(saved_label) if saved_label in OPTIONS else None
+        
+        val = st.radio(label=f"Q{q_real_idx}", options=OPTIONS, key=key_name, 
+                       index=saved_index, label_visibility="collapsed")
+        
+        if val:
+            st.session_state.answers[key_name] = {
+                "score": SCORE_MAP[val],
+                "reverse": q["reverse"],
+                "part": q["part"],
+                "label": val # 라벨 저장 (상태 유지를 위해 필수)
+            }
+        else:
+            all_answered = False 
+            
         st.markdown("---")
 
     col1, col2 = st.columns(2)
@@ -332,16 +363,19 @@ if st.session_state.step <= 4:
     
     next_btn_text = "결과 보기 🚀" if st.session_state.step == 4 else "다음 ➡️"
     if col2.button(next_btn_text, type="primary"):
-        st.session_state.step += 1
-        st.rerun()
+        if not all_answered:
+            st.warning("⚠️ 모든 질문에 답변해주세요!")
+        else:
+            st.session_state.step += 1
+            st.rerun()
 
 # -----------------------------------------------------------------------------
-# 6. 결과 화면 (최종 수정본: 인물별 성경/저서/명언 맞춤 표시)
+# 6. 결과 화면
 # -----------------------------------------------------------------------------
 else:
     scroll_to_top()
     
-    # 1. 점수 계산 및 유형 도출
+    # 1. 점수 계산
     scores = {k: 0 for k in PARTS_KEY}
     counts = {k: 0 for k in PARTS_KEY}
     
@@ -353,17 +387,16 @@ else:
         
     avg = {k: (scores[k] / counts[k] if counts[k] > 0 else 0) for k in PARTS_KEY}
     
-    # 유형 코드 조합 (T/C, D/G, P/S, L/M)
+    # 2. 유형 도출
     res_code = ""
     res_code += "T" if avg["Theology"] <= 5 else "C"
     res_code += "D" if avg["Drive"] <= 5 else "G"
     res_code += "P" if avg["Society"] <= 5 else "S"
     res_code += "L" if avg["Culture"] <= 5 else "M"
     
-    # 데이터 가져오기 (에러 방지를 위해 없으면 TDPL 기본값)
     info = TYPE_DETAILS.get(res_code, TYPE_DETAILS["TDPL"])
     
-    # 2. 메인 결과 카드 디자인
+    # 3. 결과 표시
     st.markdown(f"""
     <div class="result-card">
         <h2 style='margin-bottom:0px; color:#666; font-size:1.2em;'>당신의 영적 유형은</h2>
@@ -379,43 +412,34 @@ else:
     </div>
     """, unsafe_allow_html=True)
     
-    # 3. 롤모델(인물) 소개 섹션
     st.markdown("### 👥 이 유형의 롤모델 (Role Models)")
     st.caption("※ 아이콘 범례: 📖 성경구절 | 📚 대표저서 | 💬 명언")
     
-    # 4단 컬럼 생성
     cols = st.columns(4)
-    
-    # 인물 데이터 반복 출력
     for i, person in enumerate(info['people_data']):
-        # 이미지 파일 경로 생성 (예: images/TDPL_1.jpg)
         img_path = f"images/{res_code}_{i+1}.jpg"
         
-        # 인물 유형에 따른 아이콘 결정
         p_type = person.get("type", "Quote")
         if p_type == "Bible":
             icon = "📖"
-            bg_color = "#e3f2fd" # 파란색 틴트 (성경)
+            bg_color = "#e3f2fd"
         elif p_type == "Book":
             icon = "📚"
-            bg_color = "#f3e5f5" # 보라색 틴트 (책)
+            bg_color = "#f3e5f5"
         else:
             icon = "💬"
-            bg_color = "#fff3e0" # 주황색 틴트 (명언)
+            bg_color = "#fff3e0"
             
         with cols[i]:
-            # (1) 이미지 표시
             if os.path.exists(img_path):
                 st.image(img_path, use_container_width=True)
             else:
-                # 이미지가 없을 경우 대체 박스 표시
                 st.markdown(f"""
                 <div style="background-color:#f8f9fa; height:150px; display:flex; align-items:center; justify-content:center; border-radius:8px; border:1px dashed #ced4da; color:#adb5bd; font-size:0.8em; margin-bottom:10px;">
                     {person['name']}<br>(이미지 없음)
                 </div>
                 """, unsafe_allow_html=True)
             
-            # (2) 텍스트 표시 (이름 + 내용)
             st.markdown(f"""
             <div style="text-align:center;">
                 <div style="font-weight:bold; font-size:1.1em; margin-bottom:8px; color:#2c3e50;">
@@ -429,16 +453,13 @@ else:
 
     st.divider()
 
-    # 4. 차트 및 공유 섹션
     col_chart, col_share = st.columns([1, 1])
-    
     with col_chart:
         st.subheader("📊 나의 성향 분석")
         chart_data = pd.DataFrame({
             "지표": ["신학(T vs C)", "동력(D vs G)", "사회(P vs S)", "문화(L vs M)"],
             "점수": [avg["Theology"], avg["Drive"], avg["Society"], avg["Culture"]]
         })
-        # Altair 차트
         c = alt.Chart(chart_data).mark_bar().encode(
             x=alt.X('지표', sort=None),
             y=alt.Y('점수', scale=alt.Scale(domain=[0, 10])),
@@ -455,7 +476,6 @@ else:
 
     st.divider()
     
-    # 5. 다시하기 버튼
     if st.button("🔄 처음부터 다시 하기", type="secondary"):
         st.session_state.step = 1
         st.session_state.answers = {}
