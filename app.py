@@ -3,9 +3,9 @@ import pandas as pd
 import streamlit.components.v1 as components
 import altair as alt
 import os
-import datetime # [NEW] 시간 기록용
-import gspread # [NEW] 구글 시트 연동용
-from oauth2client.service_account import ServiceAccountCredentials # [NEW] 인증용
+import datetime
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
 # -----------------------------------------------------------------------------
 # 1. 페이지 설정 및 모바일 최적화 CSS
@@ -78,69 +78,73 @@ if "step" not in st.session_state:
 if "answers" not in st.session_state:
     st.session_state.answers = {}
 
-# 50문항 데이터
+# -----------------------------------------------------------------------------
+# [핵심 변경] 최종 확정된 50문항 데이터 적용
+# -----------------------------------------------------------------------------
 questions_data = [
-    # 1. 신학 (Theology)
-    {"text": "성경에 기록된 기적(홍해 가름 등)은 과학적으로 설명되지 않아도 문자 그대로의 사실이다.", "part": "Theology", "reverse": True},
-    {"text": "진화론은 성경의 창조 섭리를 부정하는 것이므로, 타협 없이 배격해야 한다.", "part": "Theology", "reverse": True},
-    {"text": "여성이 목사 안수를 받고 설교하는 것은 성경적 질서에 어긋난다고 생각한다.", "part": "Theology", "reverse": True},
-    {"text": "타종교에도 구원의 가능성이 있거나 배울 점이 있다고 인정하는 것은 위험하다.", "part": "Theology", "reverse": True},
+    # 1. 신학 (Theology) - T(Text, 보수) vs C(Context, 진보)
+    # T형 질문은 reverse=True (점수를 낮게 줌), C형 질문은 reverse=False (점수를 높게 줌)
+    {"text": "성경에 기록된 기적(홍해 가름, 오병이어 등)은 과학적으로 설명되지 않아도 문자 그대로 일어난 역사적 사실이다.", "part": "Theology", "reverse": True},
+    {"text": "술, 담배 문제는 구원이나 신앙의 본질과 무관하므로, 무조건 금지하기보다 개인의 양심과 자율에 맡겨야 한다.", "part": "Theology", "reverse": False},
+    {"text": "여성이 목사 안수를 받고 강단에서 설교하는 것은 성경적 창조 질서에 어긋난다고 생각한다.", "part": "Theology", "reverse": True},
     {"text": "동성애는 인권 문제가 아니라 성경이 금지하는 '치유받아야 할 죄'의 문제다.", "part": "Theology", "reverse": True},
-    {"text": "설교라도 나의 이성과 상식에 비추어 납득이 가지 않으면 비판적으로 수용해야 한다.", "part": "Theology", "reverse": False},
-    {"text": "술/담배는 구원과 무관하지만, 직분자라면 엄격히 금해야 한다.", "part": "Theology", "reverse": True},
     {"text": "'예수 천국, 불신 지옥' 구호는 기독교 진리를 너무 단순화시킨 것이라 거부감이 든다.", "part": "Theology", "reverse": False},
-    {"text": "설교 시간에 인문학, 철학, 영화 이야기가 자주 인용되는 것이 자연스럽고 유익하다.", "part": "Theology", "reverse": False},
-    {"text": "성경의 어떤 명령들은 당시 문화적 배경 때문이므로 현대에 문자 그대로 적용해선 안 된다.", "part": "Theology", "reverse": False},
-    {"text": "사랑보다는 죄에 대한 엄격한 지적과 심판을 강조하는 설교가 더 영적이라고 느낀다.", "part": "Theology", "reverse": True},
-    {"text": "교회는 세상 문화가 침투하지 못하도록 거룩하게 구별된 방파제 역할을 해야 한다.", "part": "Theology", "reverse": True},
-    {"text": "사랑의 하나님이 믿지 않는다는 이유로 사람을 지옥에 던지신다는 교리에 감정적 어려움을 느낀다.", "part": "Theology", "reverse": False},
-    {"text": "정신의학보다 기도가 우울증 해결의 근본 열쇠라고 믿는다.", "part": "Theology", "reverse": True},
+    {"text": "진화론은 성경의 창조 신앙과 양립하기 어려우므로, 기독교인이라면 이를 무비판적으로 수용해서는 안 된다.", "part": "Theology", "reverse": True},
+    {"text": "목사님의 설교라도 나의 이성과 상식에 비추어 납득이 가지 않으면 무조건 믿기보다 비판적으로 수용해야 한다.", "part": "Theology", "reverse": False},
+    {"text": "교회는 세상 문화가 침투하지 못하도록 거룩하게 구별된 '방파제' 역할을 해야 한다.", "part": "Theology", "reverse": True},
+    {"text": "지진이나 전염병 같은 대형 재난을 특정 죄에 대한 '하나님의 심판'으로 해석하는 것은 위험하다고 생각한다.", "part": "Theology", "reverse": False},
+    {"text": "타종교에도 구원의 가능성이 있거나 배울 점이 있다고 인정하는 것은 위험하다.", "part": "Theology", "reverse": True},
+    {"text": "설교 시간에 인문학, 철학, 영화 이야기 등 세상의 학문이 자주 인용되는 것이 자연스럽고 유익하다.", "part": "Theology", "reverse": False},
+    {"text": "정신의학적 상담과 치료보다 기도가 우울증 같은 마음의 병을 해결하는 근본 열쇠라고 믿는다.", "part": "Theology", "reverse": True},
+    {"text": "사랑의 하나님이 불신자와 다른 종교를 믿는 사람들을 지옥에 던지신다는 교리에 감정적 어려움을 느낀다.", "part": "Theology", "reverse": False},
     {"text": "사도신경이나 주기도문 형식을 생략하는 것은 예배의 거룩함을 해친다.", "part": "Theology", "reverse": True},
-    # 2. 동력 (Drive)
+    {"text": "하나님의 공의와 심판을 강조하는 설교보다, 조건 없는 사랑과 용서를 강조하는 설교가 더 복음적이다.", "part": "Theology", "reverse": False},
+
+    # 2. 동력 (Drive) - D(Discipline, 훈련/지성) vs G(Grace, 은혜/감성)
+    # D형 질문은 reverse=True, G형 질문은 reverse=False
     {"text": "다 같이 '주여!'를 크게 외치고 통성 기도할 때 영적인 시원함을 느낀다.", "part": "Drive", "reverse": False},
-    {"text": "방언, 신유 같은 성령의 은사는 오늘날 예배 때도 강력하게 나타나야 한다.", "part": "Drive", "reverse": False},
-    {"text": "하나님을 잘 믿으면 자녀 성공, 사업 번창 같은 현실적인 복을 주신다고 믿는다.", "part": "Drive", "reverse": False},
-    {"text": "눈물이나 가슴 뜨거운 '정서적 체험'이 없는 예배는 건조하다.", "part": "Drive", "reverse": False},
-    {"text": "신앙생활의 본질은 복을 누리는 것보다, 자기를 부인하고 고난을 견디는 훈련이다.", "part": "Drive", "reverse": True},
-    {"text": "뜨거운 집회보다 성경을 체계적으로 공부하는 제자훈련이 더 유익하다.", "part": "Drive", "reverse": True},
-    {"text": "논리적 가르침보다 투박하더라도 강력한 카리스마와 열정으로 선포해주길 원한다.", "part": "Drive", "reverse": False},
-    {"text": "단순하고 반복적인 찬양(CCM)을 부르며 감정에 몰입하는 시간이 길었으면 좋겠다.", "part": "Drive", "reverse": False},
-    {"text": "예배 순서가 빈틈없이 진행되는 엄숙하고 질서 있는 분위기가 편안하다.", "part": "Drive", "reverse": True},
-    {"text": "설교가 나를 꾸짖기보다 지친 마음을 따뜻하게 위로해주길 바란다.", "part": "Drive", "reverse": False},
-    {"text": "친근한 리더십보다 범접하기 어려운 영적 권위가 있는 '선지자' 같은 목사님이 좋다.", "part": "Drive", "reverse": False},
-    {"text": "신앙 성장은 뜨거운 열심보다 인격이 성숙해지고 삶이 차분해지는 것이다.", "part": "Drive", "reverse": True},
-    {"text": "찬양 중 '다 같이 일어납시다' 할 때 기쁘게 동참한다.", "part": "Drive", "reverse": False},
-    {"text": "예화 위주 설교보다 원어의 의미를 풀이해주는 강해 설교를 선호한다.", "part": "Drive", "reverse": True},
-    {"text": "소리 내어 부르짖는 것보다 침묵하며 관상 기도하는 것이 더 맞는다.", "part": "Drive", "reverse": True},
-    # 3. 사회 (Society)
-    {"text": "강단에서 정치나 사회 이슈 발언은 교회의 본질에서 벗어난 것이다.", "part": "Society", "reverse": True},
-    {"text": "최우선 사명은 사회 개혁보다 한 영혼 전도하여 구원받게 하는 것이다.", "part": "Society", "reverse": True},
-    {"text": "개인의 회개뿐 아니라 사회의 불의한 구조를 바꾸기 위해 교회가 목소리를 내야 한다.", "part": "Society", "reverse": False},
-    {"text": "사회적 현장(집회 등)에 기독교인이 깃발을 들고 참여하는 것은 자연스럽다.", "part": "Society", "reverse": False},
-    {"text": "교회 예산 상당 부분은 건물 유지보다 외부 구제와 사회적 약자를 위해 쓰여야 한다.", "part": "Society", "reverse": False},
-    {"text": "예수님의 사역은 죄 사함만큼이나 가난하고 억눌린 자 해방에 있었다.", "part": "Society", "reverse": False},
-    {"text": "세상과 구별됨은 담을 쌓는 게 아니라 세상 속에서 정의를 실천하는 것이다.", "part": "Society", "reverse": False},
-    {"text": "차별금지법 등 사회적 법안에 대해 교회가 적극적으로 입장을 표명해야 한다.", "part": "Society", "reverse": False},
-    {"text": "직장에서 성공하여 높은 자리에 오르는 것이 곧 하나님께 영광 돌리는 길이다.", "part": "Society", "reverse": True},
-    {"text": "'정교분리'는 교회가 사회적 책임을 회피하는 핑계로 쓰일 때가 많다.", "part": "Society", "reverse": False},
-    # 4. 문화 (Culture)
-    {"text": "예배 시간에 드럼이나 일렉기타 소리가 크면 경건함이 깨진다고 느낀다.", "part": "Culture", "reverse": True},
-    {"text": "목사님이 청바지나 티셔츠를 입고 설교하는 것도 괜찮다.", "part": "Culture", "reverse": False},
-    {"text": "사도신경/주기도문을 매주 암송하기보다 상황에 맞춰 생략하거나 찬양으로 대체해도 좋다.", "part": "Culture", "reverse": False},
-    {"text": "교회 건물은 십자가, 스테인드글라스 등 종교적 상징과 엄숙함이 있어야 한다.", "part": "Culture", "reverse": True},
-    {"text": "교회 안에서 '형제/자매님'보다 '장로/권사님' 직분 호칭이 질서 있어 보인다.", "part": "Culture", "reverse": True},
-    {"text": "불신자도 오기 쉬운 '카페 같은 분위기'의 열린 예배를 선호한다.", "part": "Culture", "reverse": False},
-    {"text": "온라인 예배도 현장 예배만큼이나 영적인 가치가 있다.", "part": "Culture", "reverse": False},
-    {"text": "본당은 거룩한 곳이므로 평일에 공연장 등 다른 용도로 쓰는 건 조심스럽다.", "part": "Culture", "reverse": True},
-    {"text": "주일 성수도 부득이한 사정이 있으면 융통성 있게(온라인/타교회) 할 수 있다.", "part": "Culture", "reverse": False},
-    {"text": "최신 드라마, 영화, 뉴스 등이 설교 예화로 자주 등장하는 것이 좋다.", "part": "Culture", "reverse": False},
+    {"text": "신앙생활의 본질은 현실의 복을 누리는 것보다, 자기를 부인하고 십자가의 길(고난과 절제)을 걷는 훈련이다.", "part": "Drive", "reverse": True},
+    {"text": "목사님이 논리적이고 치밀한 분보다는, 조금 투박하더라도 강력한 영적 카리스마와 열정으로 선포하시는 분이 좋다.", "part": "Drive", "reverse": False},
+    {"text": "뜨거운 예배 같은 일시적이고 감정적인 체험보다는, 말씀을 체계적으로 깊이 있게 공부하고 삶에 적용하는 '제자 훈련'이 신앙의 뼈대라고 생각한다.", "part": "Drive", "reverse": True},
+    {"text": "목사님의 설교가 나를 꾸짖는 내용보다는, 지친 마음을 따뜻하게 위로해 주시는 내용이면 좋겠다.", "part": "Drive", "reverse": False},
+    {"text": "신앙 성장은 종교적인 체험보다는, 나의 인격이 다듬어지고 일상의 삶이 거룩해지는 것(성화)에서 증명된다.", "part": "Drive", "reverse": True},
+    {"text": "복잡한 신학적 지식이나 논리보다는, 단순하더라도 하나님을 향한 순수한 열정과 가슴 뜨거운 은혜가 더 중요하다.", "part": "Drive", "reverse": False},
+    {"text": "예배는 감정을 표출하기보다, 빈틈없이 진행되는 엄숙하고 질서 있는 분위기 속에서 경건함을 유지해야 한다.", "part": "Drive", "reverse": True},
+    {"text": "방언, 신유(병 고침) 같은 성령의 초자연적인 은사는 오늘날에도 동일하게 나타나며, 이는 성령이 일하시는 강력한 증거다.", "part": "Drive", "reverse": False},
+    {"text": "예화가 많은 설교보다는, 성경 본문의 원어적 의미와 배경을 논리적으로 풀어주는 '강해 설교'를 선호한다.", "part": "Drive", "reverse": True},
+
+    # 3. 사회 (Society) - P(Private, 개인/안정) vs S(Social, 사회/참여)
+    # P형 질문은 reverse=True, S형 질문은 reverse=False
+    {"text": "교회의 최우선 사명은 사회 개혁보다 한 영혼을 전도하여 구원받게 하는 것이다.", "part": "Society", "reverse": True},
+    {"text": "성경이 \"위에 있는 권세들에게 복종하라\"고 했으므로, 정권이 마음에 들지 않더라도 일단 선거로 뽑혔다면 믿고 순응해야 한다.", "part": "Society", "reverse": True},
+    {"text": "개인의 죄를 회개하는 것보다, 가난과 차별을 만들어내는 사회의 구조적 악과 모순에 관심을 갖는 것이 더 중요하다.", "part": "Society", "reverse": False},
+    {"text": "거리에서 시위나 집회를 하는 것보다는, 열심히 공부하고 자기계발을 통해 사회적 영향력을 갖추는 것이 하나님께 더 영광이 된다.", "part": "Society", "reverse": True},
+    {"text": "사회적 현장(집회, 시위 등)에 기독교인이 깃발을 들고 참여하는 것은 자연스러운 일이다.", "part": "Society", "reverse": False},
+    {"text": "예수님의 사역은 인류 구원과 죄의 대속만큼이나 가난하고 소외된 사람들을 해방하는 데 있었다.", "part": "Society", "reverse": False},
+    {"text": "강단에서 특정 정당을 지지하거나 민감한 정치적 이슈를 언급하는 것은 교회의 본질을 흐리는 일이다.", "part": "Society", "reverse": True},
+    {"text": "진정한 이웃 사랑은 단순한 기부나 봉사를 넘어, 억울하고 소외된 자들의 편에 서서 목소리를 내주는 것이다.", "part": "Society", "reverse": False},
+    {"text": "포괄적 차별금지법 제정을 반대하는 것은 교회가 거룩함을 지키기 위해 반드시 해야 할 일이다.", "part": "Society", "reverse": True},
+    {"text": "세상과 구별됨은 교회 안에 머무는 것이 아니라, 세상 속으로 들어가 정의를 실천하는 것이다.", "part": "Society", "reverse": False},
+
+    # 4. 문화 (Culture) - L(Liturgy, 전통) vs M(Modern, 현대)
+    # L형 질문은 reverse=True, M형 질문은 reverse=False
+    {"text": "찬양 시간에 드럼이나 일렉기타 소리가 너무 크면 경건함이 깨진다고 느낀다.", "part": "Culture", "reverse": True},
+    {"text": "교독문이나 송영 같은 전통적 형식보다는, 찬양과 기도, 설교에만 집중하는 단순한 예배 순서가 더 편하다.", "part": "Culture", "reverse": False},
+    {"text": "교회 건물은 여건상 빌려 쓸 수도 있겠지만, 그래도 언젠가는 하나님께 드려진 구별된 성전이 반드시 있어야 한다.", "part": "Culture", "reverse": True},
+    {"text": "주일 성수도 여행이나 출장, 가족행사 등의 부득이한 사유가 있다면 가끔은 건너뛸 수 있다.", "part": "Culture", "reverse": False},
+    {"text": "교회 안에서 서로를 부를 때 형제, 자매님보다 장로, 권사, 집사님 같은 직분으로 부르는 것이 질서 있어 보인다.", "part": "Culture", "reverse": True},
+    {"text": "목사님이 정장 대신 청바지나 티셔츠 같은 편안한 복장으로 설교하는 것도 괜찮다.", "part": "Culture", "reverse": False},
+    {"text": "아무리 시대가 변해도 주일 예배는 온라인보다는 내가 등록한 교회의 현장에 직접 가서 드리는 것이 원칙이다.", "part": "Culture", "reverse": True},
+    {"text": "사도신경이나 주기도문을 매주 암송하기보다, 상황에 맞춰 생략하거나 찬양으로 대체해도 좋다.", "part": "Culture", "reverse": False},
+    {"text": "본당(예배당)은 거룩한 곳이므로, 평일에 대중 공연장이나 다른 용도로 빌려주는 건 조심스럽다.", "part": "Culture", "reverse": True},
+    {"text": "불신자들도 거부감 없이 올 수 있는 카페 같은 분위기의 편안하고 열린 예배를 선호한다.", "part": "Culture", "reverse": False},
 ]
 
 OPTIONS = ["매우 그렇다", "조금 그렇다", "조금 아니다", "매우 아니다"]
 SCORE_MAP = {"매우 그렇다": 10, "조금 그렇다": 6.7, "조금 아니다": 3.3, "매우 아니다": 0}
 
 # -----------------------------------------------------------------------------
-# 유형 상세 정보 (이미지 Key 제거 버전)
+# 유형 상세 정보
 # -----------------------------------------------------------------------------
 TYPE_DETAILS = {
     "TDPL": {"title": "엄격한 신학자형", "person": "장 칼뱅", "quote": "나의 마음을 주님께 드리나이다.", "keywords": ["교리", "경건", "전통", "질서"], "desc": "\"오직 성경, 오직 믿음!\" 흔들리지 않는 신학적 뼈대를 중요하게 생각합니다. 감정적인 예배보다는 깊이 있는 말씀 해석과 거룩한 예전을 선호하는 대쪽 같은 선비형 크리스천입니다."},
@@ -270,13 +274,13 @@ if st.session_state.step <= 4:
             st.rerun()
 
 # -----------------------------------------------------------------------------
-# 결과 화면 로직 (에러 수정됨)
+# 결과 화면 로직
 # -----------------------------------------------------------------------------
 else:
     scroll_to_top()
     st.balloons()
     
-    # 1. 점수 계산 (기존 코드)
+    # 1. 점수 계산
     scores = {"Theology": 0, "Drive": 0, "Society": 0, "Culture": 0}
     counts = {"Theology": 0, "Drive": 0, "Society": 0, "Culture": 0}
     
@@ -294,7 +298,7 @@ else:
     type_code += "L" if avg_scores["Culture"] <= 5 else "M"
 
     # ==========================================
-    # [NEW] 구글 시트에 데이터 저장하기 (배포 환경에서만 작동)
+    # 구글 시트에 데이터 저장하기 (배포 환경에서만 작동)
     # ==========================================
     if "saved" not in st.session_state: # 중복 저장 방지
         try:
@@ -304,7 +308,7 @@ else:
                 creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gcp_service_account"], scope)
                 client = gspread.authorize(creds)
                 
-                # 구글 시트 열기 (시트 이름 정확해야 함!)
+                # 구글 시트 열기
                 sheet = client.open("C-BTI_Result").sheet1 
                 
                 # 데이터 행 추가 [날짜, 유형, 신학점수, 동력점수, 사회점수, 문화점수]
@@ -320,9 +324,7 @@ else:
                 st.session_state.saved = True # 저장 완료 표시
                 st.toast("✅ 결과가 서버에 안전하게 저장되었습니다!", icon="💾")
         except Exception as e:
-            # 로컬에서 실행하거나 설정이 안 되어 있어도 앱이 멈추지 않게 함
-            pass
-            # st.error(f"저장 중 오류 발생: {e}") # 디버깅용 (배포시엔 주석 처리 추천)
+            st.error(f"저장 실패 원인: {e}") 
     
     # 안전하게 정보 가져오기
     type_info = TYPE_DETAILS.get(type_code, {"title": "알 수 없음", "person": "-", "quote": "", "keywords": [], "desc": "-"})
@@ -333,7 +335,6 @@ else:
     
     col_img, col_desc = st.columns([1, 2])
     
-    # [핵심 수정] 이미지 로직: 딕셔너리 키 대신 파일 존재 여부 확인
     with col_img:
         image_found = False
         # 확장자별 체크 (jpg, png)
